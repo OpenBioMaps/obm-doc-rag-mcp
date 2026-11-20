@@ -14,9 +14,9 @@ class Settings(BaseSettings):
     # ChromaDB kollekció neve
     collection_name: str = "obm_docs_hu"
 
-    # FastEmbed modell
-    # Opciók pl.: "BAAI/bge-m3" vagy "intfloat/multilingual-e5-small"
-    embedding_model: str = "BAAI/bge-m3"
+    # FastEmbed többnyelvű (magyarul is kiválóan teljesítő) modell
+    # Opciók pl.: "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2" vagy "sentence-transformers/paraphrase-multilingual-mpnet-base-v2" vagy "intfloat/multilingual-e5-large"
+    embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 
     # Chunking beállítások
     max_chunk_size: int = 700  # megközelítő szószám / tokennagyság
