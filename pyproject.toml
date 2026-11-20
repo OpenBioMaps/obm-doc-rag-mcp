@@ -1,0 +1,29 @@
+[project]
+name = "obm-rag"
+version = "0.1.0"
+description = "OpenBioMaps Documentation RAG and MCP Server"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=1.2.0",
+    "docutils>=0.21.0",
+    "chromadb>=0.5.0",
+    "fastembed>=0.3.0",
+    "pydantic>=2.7.0",
+    "pydantic-settings>=2.2.0",
+    "rich>=13.7.0",
+]
+
+[project.scripts]
+obm-mcp = "obm_rag.mcp.server:main"
+obm-index = "scripts.build_index:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "ruff>=0.4.0",
+]
