@@ -1,6 +1,5 @@
-import shutil
 from pathlib import Path
-from typing import List, Optional
+
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from fastembed import TextEmbedding
@@ -14,9 +13,9 @@ class DocumentIndexer:
 
     def __init__(
         self,
-        db_path: Optional[Path] = None,
-        collection_name: Optional[str] = None,
-        embedding_model_name: Optional[str] = None,
+        db_path: Path | None = None,
+        collection_name: str | None = None,
+        embedding_model_name: str | None = None,
     ):
         self.db_path = Path(db_path or settings.vector_db_path)
         self.collection_name = collection_name or settings.collection_name
@@ -47,7 +46,7 @@ class DocumentIndexer:
 
     def index_chunks(
         self,
-        chunks: List[DocChunk],
+        chunks: list[DocChunk],
         reset: bool = True,
         batch_size: int = 64,
     ) -> int:

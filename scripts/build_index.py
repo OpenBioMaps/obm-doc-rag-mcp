@@ -15,8 +15,8 @@ from rich.console import Console
 from rich.table import Table
 
 from obm_rag.config import settings
-from obm_rag.ingestion.rst_parser import parse_documentation_directory
 from obm_rag.ingestion.indexer import DocumentIndexer
+from obm_rag.ingestion.rst_parser import parse_documentation_directory
 
 console = Console(highlight=False)
 
@@ -29,7 +29,7 @@ def build_index(
 ):
     start_time = time.time()
     console.print(
-        f"[bold cyan]OpenBioMaps Dokumentáció Indexelő[/bold cyan] indítása..."
+        "[bold cyan]OpenBioMaps Dokumentáció Indexelő[/bold cyan] indítása..."
     )
     console.print(f" - Forrás mappa: [yellow]{docs_path}[/yellow]")
     console.print(f" - Kimeneti adatbázis: [yellow]{output_dir}[/yellow]")

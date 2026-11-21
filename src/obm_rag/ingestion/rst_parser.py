@@ -1,9 +1,9 @@
 import re
 from pathlib import Path
-from typing import List, Tuple, Optional
-from docutils.core import publish_doctree
-from docutils.parsers.rst import roles, directives, Directive
+
 from docutils import nodes
+from docutils.core import publish_doctree
+from docutils.parsers.rst import Directive, directives, roles
 
 from obm_rag.ingestion.models import DocChunk
 
@@ -94,7 +94,7 @@ def clean_text(text: str) -> str:
 
 def split_text_into_chunks(
     text: str, max_words: int = 500, overlap_words: int = 80
-) -> List[str]:
+) -> list[str]:
     """Hosszú szöveget bekezdések vagy mondatok mentén bont kisebb részekre átfedéssel."""
     text = clean_text(text)
     words = text.split()
@@ -105,7 +105,7 @@ def split_text_into_chunks(
     # Elsődleges bontás bekezdések szerint
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
 
-    current_chunk: List[str] = []
+    current_chunk: list[str] = []
     current_word_count = 0
 
     for para in paragraphs:
@@ -115,7 +115,7 @@ def split_text_into_chunks(
             chunks.append(chunk_str)
 
             # Átfedés megtartása
-            overlap_collector: List[str] = []
+            overlap_collector: list[str] = []
             overlap_count = 0
             for prev_para in reversed(current_chunk):
                 p_len = len(prev_para.split())
@@ -136,7 +136,7 @@ def split_text_into_chunks(
     return chunks
 
 
-def parse_rst_file(file_path: Path, base_docs_dir: Optional[Path] = None) -> List[DocChunk]:
+def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[DocChunk]:
     """Beolvas egy Sphinx .rst fájlt és szekció-alapú chunk-okat készít."""
     rel_path = (
         file_path.relative_to(base_docs_dir).as_posix()
@@ -177,7 +177,7 @@ def parse_rst_file(file_path: Path, base_docs_dir: Optional[Path] = None) -> Lis
             file_name=file_path.name,
         )
 
-    chunks: List[DocChunk] = []
+    chunks: list[DocChunk] = []
 
     # Megkeressük a legfelső szintű címet
     first_title_node = doctree.next_node(lambda n: n.tagname == "title")
@@ -252,8 +252,8 @@ def parse_rst_file(file_path: Path, base_docs_dir: Optional[Path] = None) -> Lis
 
 
 def parse_markdown_file(
-    file_path: Path, base_docs_dir: Optional[Path] = None
-) -> List[DocChunk]:
+    file_path: Path, base_docs_dir: Path | None = None
+) -> list[DocChunk]:
     """Beolvas egy Markdown (.md) fájlt és szekció-alapú chunk-okat készít."""
     rel_path = (
         file_path.relative_to(base_docs_dir).as_posix()
@@ -265,10 +265,10 @@ def parse_markdown_file(
     lines = raw_content.splitlines()
     doc_title = file_path.stem
 
-    sections: List[Tuple[str, List[str], str]] = []  # (section_title, lines, hierarchy)
+    sections: list[tuple[str, list[str], str]] = []  # (section_title, lines, hierarchy)
     current_title = "Általános"
-    current_lines: List[str] = []
-    hierarchy_stack: List[Tuple[int, str]] = []
+    current_lines: list[str] = []
+    hierarchy_stack: list[tuple[int, str]] = []
 
     for line in lines:
         header_match = re.match(r"^(#{1,6})\s+(.*)$", line)
@@ -298,7 +298,7 @@ def parse_markdown_file(
         hierarchy_str = " > ".join([h[1] for h in hierarchy_stack]) if hierarchy_stack else doc_title
         sections.append((current_title, current_lines, hierarchy_str))
 
-    chunks: List[DocChunk] = []
+    chunks: list[DocChunk] = []
     for s_title, s_lines, s_hier in sections:
         sec_text = clean_text("\n".join(s_lines))
         if not sec_text:
@@ -324,7 +324,7 @@ def parse_markdown_file(
 
 def _fallback_parse_file(
     file_path: Path, rel_path: str, raw_content: str
-) -> List[DocChunk]:
+) -> list[DocChunk]:
     """Egyszerű szövegbontás, ha nem parse-olható strukturáltan."""
     doc_title = file_path.stem
     cleaned = clean_text(raw_content)
@@ -346,7 +346,7 @@ def _create_chunks_from_text(
     file_path: str,
     file_name: str,
     min_words: int = 1,
-) -> List[DocChunk]:
+) -> list[DocChunk]:
     """Szövegből DocChunk objektumokat állít elő, kiszűrve a teljesen üres töredékeket."""
     text_chunks = split_text_into_chunks(full_text)
     result = []
@@ -368,13 +368,13 @@ def _create_chunks_from_text(
     return result
 
 
-def parse_documentation_directory(docs_dir: Path) -> List[DocChunk]:
+def parse_documentation_directory(docs_dir: Path) -> list[DocChunk]:
     """Beolvassa a megadott könyvtár összes .rst és .md dokumentáció fájlját."""
     docs_dir = Path(docs_dir)
     if not docs_dir.exists():
         raise FileNotFoundError(f"Dokumentáció mappa nem található: {docs_dir}")
 
-    all_chunks: List[DocChunk] = []
+    all_chunks: list[DocChunk] = []
 
     # Rendezett sorrendben járjuk be
     for file_path in sorted(docs_dir.glob("**/*")):

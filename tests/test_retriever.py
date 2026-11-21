@@ -1,4 +1,5 @@
 import pytest
+
 from obm_rag.rag.retriever import DocumentationRetriever, SearchResult
 
 

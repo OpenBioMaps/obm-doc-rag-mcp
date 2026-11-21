@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 import chromadb
 from chromadb.config import Settings as ChromaSettings
 from fastembed import TextEmbedding
@@ -21,7 +22,7 @@ class SearchResult:
     section_hierarchy: str
     score: float  # Relevancia pontszám (1 - cosine distance)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "content": self.content,
@@ -39,9 +40,9 @@ class DocumentationRetriever:
 
     def __init__(
         self,
-        db_path: Optional[Path] = None,
-        collection_name: Optional[str] = None,
-        embedding_model_name: Optional[str] = None,
+        db_path: Path | None = None,
+        collection_name: str | None = None,
+        embedding_model_name: str | None = None,
     ):
         self.db_path = Path(db_path or settings.vector_db_path)
         self.collection_name = collection_name or settings.collection_name
@@ -73,8 +74,8 @@ class DocumentationRetriever:
         self,
         query: str,
         limit: int = 5,
-        where_filter: Optional[Dict[str, Any]] = None,
-    ) -> List[SearchResult]:
+        where_filter: dict[str, Any] | None = None,
+    ) -> list[SearchResult]:
         """Szemantikus keresést hajt végre a lekérdezés alapján."""
         query = query.strip()
         if not query:
@@ -85,7 +86,7 @@ class DocumentationRetriever:
         query_vector = query_embeddings[0].tolist()
 
         # ChromaDB lekérdezés
-        query_args: Dict[str, Any] = {
+        query_args: dict[str, Any] = {
             "query_embeddings": [query_vector],
             "n_results": limit,
             "include": ["documents", "metadatas", "distances"],
@@ -95,7 +96,7 @@ class DocumentationRetriever:
 
         results = self.collection.query(**query_args)
 
-        search_results: List[SearchResult] = []
+        search_results: list[SearchResult] = []
 
         ids = results.get("ids", [[]])[0]
         documents = results.get("documents", [[]])[0]

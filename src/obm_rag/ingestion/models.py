@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, Any, Optional
+from typing import Any
 
 
 @dataclass
@@ -16,7 +16,7 @@ class DocChunk:
     chunk_index: int
     total_chunks: int = 1
 
-    def to_metadata(self) -> Dict[str, Any]:
+    def to_metadata(self) -> dict[str, Any]:
         """Visszaadja a vektortárba perzisztálható metaadatokat."""
         return {
             "file_path": self.file_path,

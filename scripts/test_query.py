@@ -1,7 +1,6 @@
 import argparse
 import sys
 import time
-from pathlib import Path
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -12,7 +11,6 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 
 from obm_rag.rag.retriever import DocumentationRetriever
 
