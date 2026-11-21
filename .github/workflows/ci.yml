@@ -1,0 +1,37 @@
+name: CI (Lint & Test)
+
+on:
+  push:
+    branches: ["main", "master", "develop"]
+  pull_request:
+    branches: ["main", "master"]
+
+jobs:
+  test:
+    name: Lint & Pytest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Kód letöltése
+        uses: actions/checkout@v4
+
+      - name: UV telepítése és konfigurálása
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+          version: "latest"
+
+      - name: Python 3.12 beállítása
+        run: uv python install 3.12
+
+      - name: Függőségek telepítése
+        run: uv sync --frozen
+
+      - name: Linter futtatása (Ruff)
+        run: uv run ruff check src scripts tests
+
+      - name: Index felépítése a tesztekhez
+        run: uv run python -m scripts.build_index --docs-path documentation/official_docs/hu
+
+      - name: Egységtesztek futtatása (Pytest)
+        run: uv run pytest

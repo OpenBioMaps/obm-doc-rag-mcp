@@ -91,6 +91,33 @@ A Claude Desktop beállítási fájljába (`%APPDATA%\Claude\claude_desktop_conf
 }
 ```
 
+## Futtatás Dockerben
+
+A Docker image a build során előre beindexeli a hivatalos magyar dokumentációt (`pre-baked index`), így azonnal kiszolgálásra kész további indexelés nélkül.
+
+### Docker image építése helyileg
+```bash
+docker build -t obm-rag:latest .
+```
+
+### Futtatás konténerből
+
+#### A) STDIO MCP mód (AI kliens konténeres indítása):
+```bash
+docker run -i --rm obm-rag:latest
+```
+
+#### B) SSE / HTTP mikroszolgáltatás mód:
+```bash
+docker run -d --name obm-rag -p 8000:8000 obm-rag:latest obm-mcp --transport sse --host 0.0.0.0 --port 8000
+```
+
+## CI/CD Folyamatok (GitHub Actions)
+
+A `.github/workflows/` könyvtár két automatizált munkafolyamatot tartalmaz:
+- **`ci.yml`**: Minden push és PR esetén futtatja a Ruff lintert és a 14 Pytest egységtesztet.
+- **`build-and-publish.yml`**: Push a `main` ágra (vagy kézi indítás esetén) automatikusan felépíti a Docker image-et az előre generált indexszel, és közzéteszi a GitHub Container Registry-ben (`ghcr.io/<owner>/obm-rag:latest`).
+
 ## Elérhető MCP Eszközök (Tools)
 
 - **`rag_search(query: str, limit: int = 5)`**: Szemantikus keresés az OpenBioMaps magyar dokumentációjában. Visszaadja a releváns szövegrészleteket, azok témáját, fejezethierarchiáját, a forrásfájl elérési útját és relevancia pontszámát.

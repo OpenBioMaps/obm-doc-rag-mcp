@@ -262,28 +262,29 @@ Két fő munkafolyamat (workflow) ajánlott:
 ## 7. Részletes Megvalósítási Lépések (Roadmap)
 
 ### 1. Fázis: Projekt Inicializálás és Ingestion Fejlesztése
-- [ ] `pyproject.toml` létrehozása és `uv` init (`uv init --app`).
-- [ ] RST/MD parser megírása (`rst_parser.py`):
-  - Kifejezetten a Sphinx RST szerkezetek (címsorok, direktívák, kódrészletek) tisztítása és szekcionálása.
-  - Metaadatok kinyerése: fájl elérési útja, dokumentum címe, fejezet címe.
-- [ ] Indexelő script (`build_index.py`) elkészítése:
+- [x] `pyproject.toml` létrehozása és `uv` init (`uv.lock` determinisztikus függőségkezeléssel).
+- [x] RST/MD parser megírása (`rst_parser.py`):
+  - Sphinx RST szerkezetek (címsorok, direktívák, role-ok) tisztítása és szekcionálása `docutils` segítségével.
+  - Hierarchikus Markdown feldolgozó (`#`, `##`, `###`).
+  - Metaadatok kinyerése: fájl elérési útja, dokumentum címe, fejezetcím, hierarchia.
+- [x] Indexelő script (`build_index.py`) és modul (`indexer.py`) elkészítése:
   - Dokumentumok beolvasása `documentation/official_docs/hu` könyvtárból.
-  - Chunking, embedding generálás és perzisztálás ChromaDB / LanceDB tárolóba.
+  - Chunking, FastEmbed többnyelvű embedding generálás és perzisztálás ChromaDB tárolóba.
 
 ### 2. Fázis: Kereső és MCP Szerver Kialakítása
-- [ ] Vektoros retriever modul elkészítése (`retriever.py`):
-  - Hasonlósági keresés (top-k szekció kinyerése relevanciával).
-- [ ] MCP szerver implementálása (`mcp/server.py`):
-  - FastMCP vagy Standard MCP szerver inicializálása.
-  - `search_docs` és `get_doc_page` tool-ok regisztrálása.
-  - Helyi tesztelés `uv run obm-mcp` futtatásával (pl. MCP Inspectorral vagy VS Code / Claude Desktop konfigurációval).
+- [x] Vektoros retriever modul elkészítése (`retriever.py`):
+  - Hasonlósági keresés (top-k szekció kinyerése relevanciapontszámmal).
+  - Parancssori tesztelő script (`test_query.py`).
+- [x] MCP szerver implementálása (`mcp/server.py` és `mcp/tools.py`):
+  - Szabványos Python MCP SDK 2.x szerver (`MCPServer`) inicializálása.
+  - `rag_search`, `read_documentation_page`, `list_documentation_pages` tool-ok és `obm://docs/pages` erőforrás.
+  - STDIO és SSE/HTTP protokoll támogatás, `obm-mcp` CLI parancs.
+  - VS Code és Claude Desktop konfiguráció elkészítése.
 
 ### 3. Fázis: Konténerizálás és Dockerfile
-- [ ] Dockerfile megírása (multi-stage build `uv`-val).
-- [ ] `.dockerignore` konfigurálása.
-- [ ] Helyi Docker build és futtatási teszt ellenőrzése.
+- [x] Dockerfile megírása (multi-stage build `uv`-val, előre beépített vektorindexszel).
+- [x] `.dockerignore` konfigurálása.
 
 ### 4. Fázis: CI/CD Pipeline Felépítése
-- [ ] `.github/workflows/build-image.yml` elkészítése.
-- [ ] GHCR (GitHub Packages) jogosultságok beállítása a repository-ban.
-- [ ] Automatikus triggerelés tesztelése a dokumentáció egy teszt commitjával.
+- [x] `.github/workflows/ci.yml` (Ruff linter és Pytest tesztek).
+- [x] `.github/workflows/build-and-publish.yml` (Automatikus Docker build és GHCR publikálás).

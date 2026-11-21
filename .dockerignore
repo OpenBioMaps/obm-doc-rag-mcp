@@ -1,0 +1,24 @@
+# Git and IDE
+.git
+.gitignore
+.vscode
+.idea
+
+# Python caches and virtualenvs
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+.pytest_cache
+.ruff_cache
+
+# Local tests and docs cache
+local_cache
+.cache
+tests
+
+# Temporary local vector store (the docker builder will generate a fresh one)
+data
