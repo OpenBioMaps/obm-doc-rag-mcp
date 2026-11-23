@@ -38,10 +38,10 @@ def test_retriever_search_results_structure(retriever):
 
 
 def test_retriever_semantic_relevance(retriever):
-    # Keresés a docker témára
+    # Search on docker topic
     docker_results = retriever.search("docker compose telepítés", limit=3)
     assert len(docker_results) > 0
-    # Legalább az egyik találatban vagy hierarchiában meg kell jelennie a docker szónak
+    # At least one result or its hierarchy should contain docker
     matched = any(
         "docker" in (r.content + r.section_hierarchy + r.doc_title).lower()
         for r in docker_results

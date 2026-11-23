@@ -7,7 +7,7 @@ _retriever: DocumentationRetriever | None = None
 
 
 def get_retriever() -> DocumentationRetriever:
-    """Visszaadja vagy inicializálja a singleton DocumentationRetriever példányt."""
+    """Returns or initializes the singleton DocumentationRetriever instance."""
     global _retriever
     if _retriever is None:
         _retriever = DocumentationRetriever()
@@ -15,29 +15,29 @@ def get_retriever() -> DocumentationRetriever:
 
 
 def execute_rag_search(query: str, limit: int = 5) -> str:
-    """Szemantikus keresést hajt végre és formázott választ ad vissza."""
+    """Performs semantic search and returns formatted response."""
     query = query.strip()
     if not query:
-        return "Nem adtál meg keresési kifejezést."
+        return "No search query provided."
 
     retriever = get_retriever()
     results: list[SearchResult] = retriever.search(query, limit=limit)
 
     if not results:
-        return f"Nem található releváns információ a megadott keresésre: '{query}'."
+        return f"No relevant documentation found for query: '{query}'."
 
     output_blocks = [
-        f"Keresési kifejezés: '{query}'",
-        f"Találatok száma: {len(results)}\n",
+        f"Search query: '{query}'",
+        f"Results count: {len(results)}\n",
     ]
 
     for idx, r in enumerate(results, 1):
         block = (
-            f"--- Találat #{idx} [Relevancia: {r.score:.3f}] ---\n"
-            f"Forrásfájl: {r.file_path}\n"
-            f"Téma/Hierarchia: {r.doc_title} > {r.section_hierarchy}\n"
-            f"Szekció címe: {r.section_title}\n"
-            f"Tartalom:\n{r.content}\n"
+            f"--- Result #{idx} [Relevance: {r.score:.3f}] ---\n"
+            f"Source file: {r.file_path}\n"
+            f"Topic/Hierarchy: {r.doc_title} > {r.section_hierarchy}\n"
+            f"Section title: {r.section_title}\n"
+            f"Content:\n{r.content}\n"
         )
         output_blocks.append(block)
 
@@ -45,16 +45,16 @@ def execute_rag_search(query: str, limit: int = 5) -> str:
 
 
 def execute_read_page(file_path_str: str) -> str:
-    """Biztonságosan beolvassa egy dokumentációs oldal teljes tartalmát."""
+    """Safely reads the full content of a documentation page."""
     docs_base = settings.docs_path.resolve()
     target_path = (docs_base / file_path_str).resolve()
 
-    # Path traversal védelem: a célfájlnak a docs_base könyvtár alatt kell lennie
+    # Path traversal protection: target file must reside under docs_base
     if not str(target_path).startswith(str(docs_base)):
-        return f"Hiba: Érvénytelen elérési út: '{file_path_str}'. Csak a dokumentációs mappán belüli fájlok érhetők el."
+        return f"Error: Invalid file path: '{file_path_str}'. Only files within the documentation directory are accessible."
 
     if not target_path.exists() or not target_path.is_file():
-        # Megpróbáljuk kiterjesztés nélkül is, ha nincs .rst / .md a végén
+        # Try appending extensions if omitted
         candidates = [
             docs_base / f"{file_path_str}.rst",
             docs_base / f"{file_path_str}.md",
@@ -66,21 +66,21 @@ def execute_read_page(file_path_str: str) -> str:
                 found = True
                 break
         if not found:
-            return f"Hiba: A kért dokumentációs oldal nem található: '{file_path_str}'."
+            return f"Error: Requested documentation page not found: '{file_path_str}'."
 
     try:
         content = target_path.read_text(encoding="utf-8", errors="replace")
         rel_path = target_path.relative_to(docs_base).as_posix()
-        return f"=== Dokumentáció: {rel_path} ===\n\n{content}"
+        return f"=== Documentation: {rel_path} ===\n\n{content}"
     except Exception as e:
-        return f"Hiba a fájl olvasásakor ({file_path_str}): {e}"
+        return f"Error reading file ({file_path_str}): {e}"
 
 
 def execute_list_pages() -> str:
-    """Kilistázza a hivatalos dokumentációban elérhető fájlokat."""
+    """Lists all available files in the official documentation."""
     docs_base = settings.docs_path.resolve()
     if not docs_base.exists():
-        return f"Hiba: A dokumentációs könyvtár nem létezik: {docs_base}"
+        return f"Error: Documentation directory does not exist: {docs_base}"
 
     pages = []
     for f in sorted(docs_base.glob("**/*")):
@@ -89,9 +89,9 @@ def execute_list_pages() -> str:
             pages.append(rel_path)
 
     if not pages:
-        return "Nem találhatók dokumentációs oldalak."
+        return "No documentation pages found."
 
-    lines = ["Elérhető hivatalos dokumentációs oldalak:"]
+    lines = ["Available official documentation pages:"]
     for p in pages:
         lines.append(f" - {p}")
 

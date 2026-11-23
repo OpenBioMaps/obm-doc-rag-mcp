@@ -1,290 +1,147 @@
-# OpenBioMaps RAG & MCP Szerver Implementációs Terv
+﻿# OpenBioMaps RAG & MCP Server Architecture & Implementation Plan
 
-Ez a dokumentum részletes megvalósítási tervet nyújt az `OBM-RAG` projekthez, melynek célja az OpenBioMaps magyar nyelvű hivatalos dokumentációjára (`documentation/official_docs/hu`) épülő **RAG (Retrieval-Augmented Generation)** rendszer, egy szabványos **MCP (Model Context Protocol) szerver**, valamint az ezeket automatizáló **CI/CD pipeline és Docker image build** kialakítása.
-
----
-
-## 1. Technológiai kérdések és döntések
-
-### 1.1. Python `uv` mint csomag- és környezetkezelő
-**Döntés: Igen, határozottan a `uv` az ideális eszköz.**
-- **Rendkívüli sebesség:** Rust alapú, 10–100-szor gyorsabb, mint a hagyományos `pip`, `pip-tools` vagy `poetry`.
-- **Projekt- és függőségkezelés:** Teljes körű `pyproject.toml` és cross-platform determinisztikus `uv.lock` támogatás.
-- **Kiváló Docker integráció:** A `uv` beépített funkciókkal rendelkezik a Docker rétegek gyors és hatékony cache-eléséhez (`uv sync --frozen --no-install-project`, multi-stage build).
-- **Beépített virtuális környezet és eszközfuttató:** Feleslegessé teszi az összetett pipenv/poetry/venv lépéseket (`uv run ...`, `uv tool ...`).
-- **Gyors CI/CD:** GitHub Actions alatt az `astral-sh/setup-uv` akcióval és a beépített cache-sel másodpercek alatt kész a környezet.
-
-### 1.2. Szükséges-e a Docling, és kell-e Pandoc a szövegkonverzióhoz?
-**Döntés: Sem Docling, sem Pandoc NEM szükséges. Tiszta, natív Python feldolgozást használunk.**
-- **Miért nem Docling?**
-  - A Docling mélytanulási (vision/OCR) modellekre épül, amelyek célja szkennelt PDF-ek, elrendezés-alapú Word dokumentumok és képek beolvasása.
-  - A mi forrásunk tiszta szövegállományokból áll (`.rst` és `.md`).
-  - A Docling beemelése több gigabájttal növelné a Docker image méretét (PyTorch, modellek), miközben a szöveges RST formátumhoz semmilyen plusz értéket nem adna.
-- **Miért nem Pandoc?**
-  - A Pandoc egy külső C/Haskell alapú bináris rendszerfüggőség (`apt-get install pandoc`), ami feleslegesen bonyolítaná a konténert.
-  - Pythonban natívan rendelkezésre áll a standard **`docutils`** (amire maga a Sphinx is épül), amivel tisztán Python kódból pár sorban kinyerhetők a fejezetek és a tiszta szöveg, felesleges külső binárisok nélkül.
-
-### 1.3. Dokumentáció mérete és CPU-s vektorizálási sebesség (On-Premise / No GPU)
-- **Tényleges adatmennyiség a repóban:**
-  - A `documentation/official_docs/hu` mappa összesen **34 fájlból** áll (26 db `.rst` és 8 db `.md`).
-  - Teljes sorok száma: **14 281 sor** (~70 000–90 000 szó, ~110 000 token).
-  - Szemantikus fejezet-alapú szeleteléssel ebből mindössze **kb. 200–350 db chunk** (szövegrészlet) keletkezik.
-- **CPU sebesség és futási idő:**
-  - Standard 2–4 vCPU szerveren a vektorizálás sebessége modelltől függően: **5–25 chunk / másodperc**.
-  - **A TELJES dokumentáció újraindexelése CPU-n mindössze 15–90 másodpercet vesz igénybe!** Nincs szükség GPU-ra az indexeléshez.
-
-### 1.4. Modellválasztás: Melyik a legmegfelelőbb CPU-ra?
-1. **BAAI / bge-m3 (Ajánlott prémium opció):**
-   - Jelenlegi élvonalbeli modell, kiemelkedő magyar nyelvi megértéssel.
-   - Sűrű (dense) és kulcsszó-alapú (sparse) keresést is támogat.
-   - Méret: ~2.2 GB. CPU-s futási idő 300 chunkra: ~1–1.5 perc.
-2. **intfloat / multilingual-e5-small vagy base (Ajánlott szupergyors/könnyű opció):**
-   - Nagyon jó magyar nyelvi találati pontosság.
-   - A `small` mérete mindössze ~470 MB, és 2-3-szor gyorsabb CPU-n, mint a BGE-M3 (mindössze ~15-20 másodperc a teljes dokumentáció).
-3. **FastEmbed motor (ONNX Runtime):**
-   - PyTorch helyett az ONNX Runtime-ot használja CPU-ra optimalizált kvantálással (INT8/FP32). Nem igényel 2 GB-os PyTorch csomagot a Dockerben, és 2-3x gyorsabb.
-
-### 1.5. CI/CD és Erőforrások: GitHub Actions (Free Tier)
-- **GitHub Free keret:** Havi **2 000 ingyenes Actions perc** (jóval bőségesebb, mint a GitLab 400 perce).
-- **GitHub Runner:** 2 vCPU, 7 GB RAM, 14 GB SSD. Bőségesen elegendő a BGE-M3 modellhez és a Docker buildhez is.
-- **Teljes CI/CD futásidő:** A kódellenőrzés + indexelés + Docker build összesen **kb. 2–3 perc**.
-- **Kvótafelhasználás:** Havi 10 dokumentáció frissítés esetén mindössze ~25 percet használunk el a 2 000-ből (~1.25%).
-- **Optimalizáció:**
-  - `paths: ['documentation/official_docs/hu/**', 'src/**', 'Dockerfile']` szűrővel csak akkor indul el a build, ha a dokumentáció vagy a kód valóban módosult.
-  - A letöltött modellek cache-elése GitHub Actions cache-sel, így nem kell minden buildnél újra letölteni az internetről.
-
-### 1.6. Repository architektúra: Almappa vs. Külön Repo
-- **A) Fejlesztési fázisban (Most):** Almappás / lokális struktúra az aktuális `OBM-RAG` könyvtáron belül a legkényelmesebb a teszteléshez és az indexelő finomhangolásához.
-- **B) Éles/Végleges állapotban:** 
-  - Külön repo (pl. `openbiomaps/obm-rag` vagy `obm-rag-mcp`) ajánlott.
-  - A dokumentációs repo megmarad tiszta dokumentációként, a RAG repo pedig:
-    - vagy **Git submodule**-ként hivatkozik a dokumentációra,
-    - vagy a GitHub Actions workflow checkout lépésben közvetlenül lehúzza a dokumentációs repo `main` ágát a Docker build előtt.
+This document outlines the architecture and implementation design for the `OBM-RAG` project, providing a **Retrieval-Augmented Generation (RAG)** system and a standard **Model Context Protocol (MCP) server** over the official OpenBioMaps documentation (`documentation/official_docs/hu`), supported by automated **CI/CD pipelines and Docker container packaging**.
 
 ---
 
-## 2. Rendszerarchitektúra és komponensek
+## 1. Technical Decisions & Trade-offs
 
-### 2.1. Adatforrás
-- **Helye:** `documentation/official_docs/hu/`
-- **Típusok:** Sphinx reStructuredText (`.rst`), Markdown (`.md`) fájlok.
-- **Feldolgozási cél:** A címsorok hierarchiájának, fejezeteknek és kódblokkoknak a megőrzése, és metaadatok (forrásfájl, fejezetcím, szekció) hozzárendelése a chunk-okhoz.
+### 1.1. Python `uv` as Package & Environment Manager
+**Decision: Yes, `uv` is the primary tool.**
+- **Extreme performance:** Rust-based, 10–100x faster than legacy `pip`, `pip-tools`, or `poetry`.
+- **Project & dependency management:** Native `pyproject.toml` support and cross-platform deterministic `uv.lock`.
+- **Optimized Docker integration:** Built-in multi-stage caching features (`uv sync --frozen --no-install-project`).
+- **Unified toolchain:** Eliminates cumbersome virtualenv management (`uv run ...`, `uv tool ...`).
+- **Fast CI/CD:** Ready within seconds on GitHub Actions via `astral-sh/setup-uv` and action cache.
 
-### 2.2. Ingestion & RAG Pipeline (Natív megközelítés)
-- **Parser & Loader (natív Python):** 
-  - **`.rst` fájlok:** A Python standard **`docutils`** parserével a szöveg fejezeteit bejárjuk. Kiszűri a Sphinx-specifikus vezérlőket (`:doc:`, `.. TODO:`, `.. note::`), de egyben tartja a logikai fejezeteket és a tiszta szöveget.
-  - **`.md` fájlok:** Fejlécalapú felosztás (`#`, `##`, `###` mentén), megőrizve a fejezethierarchiát.
-- **Chunking stratégia:**
-  - Szemantikus fejezet-alapú tördelés (Header-based chunking), max. 500–800 token chunk mérettel és 100 token átfedéssel, ha egy fejezet túl hosszú.
-- **Embedding & Vektoradatbázis (Vector Store):**
-  - **Motor:** **FastEmbed** (`BAAI/bge-m3` vagy `intfloat/multilingual-e5-small`).
-  - **Adatbázis:** **ChromaDB** vagy **LanceDB** (beágyazott, szerver nélküli, fájlrendszeren perzisztálható a `data/vector_store/` könyvtárban).
-  - **Együttes betöltés:** A `build_index.py` a memóriában előállított chunkokhoz kiszámolja az embeddingeket, és a szöveget, metaadatokat és vektorokat egyszerre menti el a lemezre.
+### 1.2. Docling vs. Pandoc vs. Native Python Parsing
+**Decision: Neither Docling nor Pandoc is required. We use pure native Python parsing.**
+- **Why not Docling?**
+  - Docling focuses on OCR and layout-based conversion for scanned PDFs and complex Word files.
+  - Our documentation consists of clean, structured text files (`.rst` and `.md`).
+  - Including Docling would add gigabytes of PyTorch and vision model dependencies without adding value for plain RST.
+- **Why not Pandoc?**
+  - Pandoc requires external C/Haskell system binaries (`apt-get install pandoc`), complicating the container.
+  - Python natively includes standard **`docutils`** (the foundation of Sphinx), allowing direct, clean extraction of section hierarchy and text.
 
-### 2.3. MCP (Model Context Protocol) Szerver
-- **Protokoll:** Hivatalos Python MCP SDK (`mcp`).
-- **Architektúra elv:** Az MCP szerver **tiszta Retrieval szolgáltatás** (Search & Context Provider). Nem tartalmaz belső LLM válaszgenerátort (`generator.py`), mert a választ a hívó LLM kliens (VS Code Copilot, Claude Desktop stb.) állítja össze a kapott pontos kontextusból. Ez kiküszöböli a kettős késleltetést, a felesleges token-költségeket és az információvesztést.
-- **Kommunikációs mód:**
-  - **STDIO** (helyi futtatáshoz VS Code, Claude Desktop, Cursor kliensekhez).
-  - **SSE / HTTP Streamable** (távoli konténeres eléréshez, mikroszolgáltatásként).
-- **MCP Eszközök (Tools):**
-  1. `rag_search(query: str, limit: int = 5)`: Szemantikus és kulcsszó-alapú keresés a magyar dokumentációban; visszatér a leginkább releváns szövegrészletekkel (chunkok), metaadatokkal (fájl, fejezetcím) és pontszámokkal a kliens LLM számára.
-  2. `read_documentation_page(path: str)`: Teljes dokumentációs oldal lekérése az eredeti formátumban (ha a modellnek egy teljes fájl kontextusára van szüksége).
-- **MCP Erőforrások (Resources):**
-  - `obm://docs/toc`: A hivatalos magyar dokumentáció tartalomjegyzéke.
-  - `obm://docs/{page_name}`: Adott oldal közvetlen szöveges elérése.
+### 1.3. Documentation Volume & CPU Vectorization Throughput (No GPU Needed)
+- **Data volume in repository:**
+  - `documentation/official_docs/hu` contains **34 files** (26 `.rst` and 8 `.md`).
+  - Total line count: **~14,281 lines** (~70,000–90,000 words, ~110,000 tokens).
+  - Semantic section-based chunking yields **~200–350 chunks**.
+- **CPU throughput & execution time:**
+  - Standard 2–4 vCPU server achieves **5–25 chunks / second**.
+  - **Full re-indexing takes only 15–90 seconds on CPU.** No GPU is necessary.
+
+### 1.4. Model Selection for CPU Execution
+1. **FastEmbed runtime (ONNX Runtime):**
+   - Utilizes ONNX Runtime with CPU-optimized INT8/FP32 execution instead of heavy PyTorch packages.
+2. **sentence-transformers / paraphrase-multilingual-MiniLM-L12-v2:**
+   - Lightweight, highly accurate across languages (including Hungarian), fast inference on CPU.
+
+### 1.5. CI/CD & Free Tier Resources: GitHub Actions
+- **GitHub Free Tier:** 2,000 free runner minutes per month.
+- **GitHub Runner:** 2 vCPU, 7 GB RAM, 14 GB SSD. Fully sufficient for indexing and Docker builds.
+- **Full CI/CD runtime:** Linting + testing + indexing + Docker build takes **~2–3 minutes**.
+
+### 1.6. Repository Architecture
+- **Documentation repository:** Clean source documentation in `OpenBioMaps/documentation`.
+- **RAG & MCP repository:** Codebase for indexing, retriever, and MCP server.
+- **CI/CD integration:** GitHub Actions checks out the documentation repository before building the Docker image.
 
 ---
 
-## 3. Ajánlott mappastruktúra
+## 2. System Architecture & Components
+
+### 2.1. Data Source
+- **Location:** `documentation/official_docs/hu/`
+- **File types:** Sphinx reStructuredText (`.rst`), Markdown (`.md`).
+- **Goal:** Preserve heading hierarchy, section context, and code blocks while attaching rich metadata (source path, document title, section breadcrumbs).
+
+### 2.2. Ingestion & RAG Pipeline
+- **Parser & Loader (native Python):**
+  - **`.rst` files:** Custom parser built on `docutils`. Cleans Sphinx directives (`:doc:`, `.. note::`, `.. toctree::`) while keeping sections intact.
+  - **`.md` files:** Heading-based splitter (`#`, `##`, `###`) maintaining document breadcrumbs.
+- **Chunking strategy:**
+  - Semantic section-based splitting, max 500–800 tokens per chunk with 80–100 token overlap for oversized sections.
+- **Vector Store:**
+  - **Engine:** **FastEmbed** (`paraphrase-multilingual-MiniLM-L12-v2`).
+  - **Database:** **ChromaDB** (embedded, persistent filesystem storage in `data/vector_store/`).
+
+### 2.3. MCP (Model Context Protocol) Server
+- **Protocol:** Official Python MCP SDK (`mcp.server.mcpserver`).
+- **Architectural role:** **Pure Retrieval & Context Provider**. The server does not invoke an internal generator LLM; the calling client LLM (Copilot, Claude, Cursor) synthesizes answers from retrieved context.
+- **Transports:**
+  - **Streamable HTTP** (`/mcp`): Recommended modern public standard for remote clients.
+  - **SSE** (`/sse`): Traditional Server-Sent Events transport.
+  - **STDIO**: Local command-line execution for local IDEs.
+- **MCP Tools:**
+  1. `rag_search(query: str, limit: int = 5)`: Semantic search returning relevant chunks, breadcrumbs, source paths, and relevance scores.
+  2. `read_documentation_page(path: str)`: Safely reads the full content of any documentation file.
+  3. `list_documentation_pages()`: Lists available documentation pages.
+- **MCP Resources:**
+  - `obm://docs/pages`: Direct resource access to the available documentation index.
+
+---
+
+## 3. Directory Structure
 
 ```
 OBM-RAG/
 ├── .github/
 │   └── workflows/
-│       ├── test.yml            # CI: kódminőség, típusok, tesztek
-│       └── build-image.yml     # CD: RAG index frissítés, Docker build & push
-├── documentation/
-│   ├── official_docs/
-│   │   └── hu/                 # A forrás dokumentáció
-│   └── ...
+│       ├── ci.yml                  # Linting & unit tests
+│       └── build-and-publish.yml   # Documentation fetch, pre-indexing & GHCR push
+├── documentation/                  # Cloned during build / local dev
 ├── src/
 │   └── obm_rag/
 │       ├── __init__.py
-│       ├── config.py           # Környezeti változók, beállítások
-│       ├── ingestion/          # Dokumentáció feldolgozás & indexelés
+│       ├── config.py               # Pydantic settings & paths
+│       ├── ingestion/              # Ingestion, parsing, and chunking
 │       │   ├── __init__.py
-│       │   ├── rst_parser.py   # RST és MD felolvasó, chunker
-│       │   └── indexer.py      # Vektorizálás és DB feltöltés
-│       ├── rag/                # Lekérdezési és retriever logika
+│       │   ├── models.py           # DocChunk dataclass
+│       │   ├── rst_parser.py       # Sphinx RST & Markdown parser
+│       │   └── indexer.py          # Vector embedding & ChromaDB persistence
+│       ├── rag/                    # Retriever logic
 │       │   ├── __init__.py
-│       │   └── retriever.py    # Vektoros és szemantikus kereső
-│       └── mcp/                # MCP szerver implementáció
+│       │   └── retriever.py        # Semantic search against ChromaDB
+│       └── mcp/                    # MCP server
 │           ├── __init__.py
-│           ├── server.py       # MCP Server definíció és futtatás
-│           └── tools.py        # Keresési és lekérdező eszközök
+│           ├── server.py           # Server instantiation & CLI transport
+│           └── tools.py            # Tool implementations
 ├── scripts/
-│   ├── build_index.py          # Parancssori script az index újraépítéséhez
-│   └── test_query.py           # Manuális tesztelő script
+│   ├── build_index.py              # CLI index builder
+│   └── test_query.py               # Interactive CLI test tool
 ├── data/
-│   └── vector_store/           # Generált vektorindex (lokális cache / pre-built)
+│   └── vector_store/               # ChromaDB storage (local / pre-baked)
 ├── tests/
 │   ├── test_parser.py
 │   ├── test_retriever.py
-│   └── test_mcp_tools.py
+│   └── test_mcp_server.py
 ├── .dockerignore
 ├── .gitignore
-├── Dockerfile                  # Multi-stage Dockerfile uv-val
-├── pyproject.toml              # Projekt leírás és uv függőségek
-└── uv.lock                     # Determinisztikus függőségfa
+├── Dockerfile                      # Multi-stage build with baked-in index
+├── docker-compose.yml              # Server runtime configuration
+├── pyproject.toml                  # Project definition & dependencies
+└── uv.lock                         # Deterministic lockfile
 ```
 
 ---
 
-## 4. `pyproject.toml` és függőségek (uv minta)
+## 4. Implementation Roadmap
 
-```toml
-[project]
-name = "obm-rag"
-version = "0.1.0"
-description = "OpenBioMaps Documentation RAG and MCP Server"
-readme = "README.md"
-requires-python = ">=3.11"
-dependencies = [
-    "mcp>=1.2.0",
-    "docutils>=0.21.0",
-    "chromadb>=0.5.0",
-    "fastembed>=0.3.0",        # CPU-ra optimalizált ONNX embedding (BGE-M3 vagy E5)
-    "pydantic>=2.7.0",
-    "pydantic-settings>=2.2.0",
-    "rich>=13.7.0",
-]
+### Phase 1: Ingestion & Parser
+- [x] Configure `pyproject.toml` and lock dependencies via `uv`.
+- [x] Implement `rst_parser.py` supporting Sphinx roles and Markdown hierarchy.
+- [x] Build `build_index.py` and `indexer.py` with FastEmbed and ChromaDB.
 
-[project.scripts]
-obm-mcp = "obm_rag.mcp.server:main"
-obm-index = "scripts.build_index:main"
+### Phase 2: Retrieval & MCP Server
+- [x] Implement `retriever.py` with cosine distance to relevance score mapping.
+- [x] Implement `test_query.py` CLI testing utility.
+- [x] Implement standard MCP server (`server.py`, `tools.py`) supporting STDIO, SSE, and Streamable HTTP.
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[dependency-groups]
-dev = [
-    "pytest>=8.0.0",
-    "ruff>=0.4.0",
-]
-```
-
----
-
-## 5. Dockerfile tervezés (`uv` multi-stage build)
-
-A Docker image-be beépíthető az előre legyártott vektorindex, így az image azonnal kiszolgálásra kész és nem igényel indulási indexelést:
-
-```dockerfile
-# 1. Builder réteg: uv és függőségek telepítése
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
-
-WORKDIR /app
-
-# UV beállítások a gyors és determinisztikus buildhez
-ENV UV_COMPILE_BYTECODE=1 \
-    UV_LINK_MODE=copy
-
-# Függőségek telepítése lockfile alapján
-COPY pyproject.toml uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
-
-# Forráskód és dokumentáció másolása
-COPY src/ ./src/
-COPY scripts/ ./scripts/
-COPY documentation/ ./documentation/
-COPY README.md ./
-
-# Projekt telepítése
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
-
-# Dokumentáció indexelése a build során (beépített index)
-# Megjegyzés: Ha API kulcs szükséges az embeddinghez, az build-secretként átadható
-RUN uv run python -m scripts.build_index --docs-path documentation/official_docs/hu --output-dir /app/data/vector_store
-
-# 2. Végleges futtató réteg
-FROM python:3.11-slim-bookworm AS runtime
-
-WORKDIR /app
-
-ENV PATH="/app/.venv/bin:$PATH" \
-    PYTHONUNBUFFERED=1
-
-# Másoljuk át a virtuális környezetet, kódot és az előre elkészített indexet
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/src /app/src
-COPY --from=builder /app/data/vector_store /app/data/vector_store
-
-EXPOSE 8000
-
-# Alapértelmezett indítás (MCP szerver STDIO vagy SSE módban)
-ENTRYPOINT ["obm-mcp"]
-```
-
----
-
-## 6. CI/CD folyamat tervezése (GitHub Actions)
-
-Két fő munkafolyamat (workflow) ajánlott:
-
-### 6.1. `CI: Kód- és dokumentáció-ellenőrzés (.github/workflows/test.yml)`
-- **Trigger:** Pull request vagy push bármelyik ágra.
-- **Feladatok:**
-  1. `uv` környezet beállítása (`astral-sh/setup-uv@v3`).
-  2. Kódformázás és linter futtatása (`uv run ruff check .`).
-  3. Egységtesztek futtatása (`uv run pytest`).
-  4. Próba-indexelés validálása (dry-run a docs/hu fájlokon).
-
-### 6.2. `CD: RAG Indexelés & Docker Image Build (.github/workflows/build-image.yml)`
-- **Trigger:**
-  - Push a `main` ágra, ha a `documentation/official_docs/hu/**` vagy az alkalmazáskód módosul (`paths:` szűrővel).
-  - Kézi indítás (`workflow_dispatch`).
-- **Lépések:**
-  1. Kód letöltése (`actions/checkout`).
-  2. Docker Buildx beállítása.
-  3. Bejelentkezés GitHub Container Registry-be (GHCR: `ghcr.io/${{ github.repository }}/obm-rag-mcp`).
-  4. Actions Cache beállítása a letöltött FastEmbed/HuggingFace modellekhez (gyorsítja a buildet).
-  5. Multi-stage Docker build futtatása:
-     - Leindexeli a dokumentációt.
-     - Becsomagolja a perzisztens indexet és az MCP szervert.
-     - Push-olja a kész konténert `latest` és git sha címkékkel.
-
----
-
-## 7. Részletes Megvalósítási Lépések (Roadmap)
-
-### 1. Fázis: Projekt Inicializálás és Ingestion Fejlesztése
-- [x] `pyproject.toml` létrehozása és `uv` init (`uv.lock` determinisztikus függőségkezeléssel).
-- [x] RST/MD parser megírása (`rst_parser.py`):
-  - Sphinx RST szerkezetek (címsorok, direktívák, role-ok) tisztítása és szekcionálása `docutils` segítségével.
-  - Hierarchikus Markdown feldolgozó (`#`, `##`, `###`).
-  - Metaadatok kinyerése: fájl elérési útja, dokumentum címe, fejezetcím, hierarchia.
-- [x] Indexelő script (`build_index.py`) és modul (`indexer.py`) elkészítése:
-  - Dokumentumok beolvasása `documentation/official_docs/hu` könyvtárból.
-  - Chunking, FastEmbed többnyelvű embedding generálás és perzisztálás ChromaDB tárolóba.
-
-### 2. Fázis: Kereső és MCP Szerver Kialakítása
-- [x] Vektoros retriever modul elkészítése (`retriever.py`):
-  - Hasonlósági keresés (top-k szekció kinyerése relevanciapontszámmal).
-  - Parancssori tesztelő script (`test_query.py`).
-- [x] MCP szerver implementálása (`mcp/server.py` és `mcp/tools.py`):
-  - Szabványos Python MCP SDK 2.x szerver (`MCPServer`) inicializálása.
-  - `rag_search`, `read_documentation_page`, `list_documentation_pages` tool-ok és `obm://docs/pages` erőforrás.
-  - STDIO és SSE/HTTP protokoll támogatás, `obm-mcp` CLI parancs.
-  - VS Code és Claude Desktop konfiguráció elkészítése.
-
-### 3. Fázis: Konténerizálás és Dockerfile
-- [x] Dockerfile megírása (multi-stage build `uv`-val, előre beépített vektorindexszel).
-- [x] `.dockerignore` konfigurálása.
-
-### 4. Fázis: CI/CD Pipeline Felépítése
-- [x] `.github/workflows/ci.yml` (Ruff linter és Pytest tesztek).
-- [x] `.github/workflows/build-and-publish.yml` (Automatikus Docker build és GHCR publikálás).
+### Phase 3: Packaging & CI/CD
+- [x] Create multi-stage `Dockerfile` baking in pre-indexed documentation.
+- [x] Create `docker-compose.yml` for zero-source server operation.
+- [x] Implement GitHub Actions workflows (`ci.yml`, `build-and-publish.yml`).
+- [x] Configure webhook trigger (`repository_dispatch`) for docs synchronization.

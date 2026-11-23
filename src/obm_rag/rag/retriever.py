@@ -11,7 +11,7 @@ from obm_rag.config import settings
 
 @dataclass
 class SearchResult:
-    """Egy visszakeresett dokumentum-részlet és metaadatai."""
+    """A retrieved document snippet and its metadata."""
 
     id: str
     content: str
@@ -20,7 +20,7 @@ class SearchResult:
     doc_title: str
     section_title: str
     section_hierarchy: str
-    score: float  # Relevancia pontszám (1 - cosine distance)
+    score: float  # Relevance score (1 - cosine distance)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -36,7 +36,7 @@ class SearchResult:
 
 
 class DocumentationRetriever:
-    """Szemantikus kereső az OpenBioMaps dokumentáció vektoradatbázisában."""
+    """Semantic search engine for the OpenBioMaps documentation vector database."""
 
     def __init__(
         self,
@@ -50,11 +50,11 @@ class DocumentationRetriever:
 
         if not self.db_path.exists():
             raise FileNotFoundError(
-                f"A vektortár mappa nem létezik: {self.db_path}. "
-                "Futtasd előbb a 'scripts.build_index' scriptet!"
+                f"Vector store directory does not exist: {self.db_path}. "
+                "Run 'scripts.build_index' first!"
             )
 
-        # ChromaDB kliens megnyitása
+        # Open ChromaDB client
         self.client = chromadb.PersistentClient(
             path=str(self.db_path),
             settings=ChromaSettings(anonymized_telemetry=False),
@@ -64,10 +64,10 @@ class DocumentationRetriever:
             self.collection = self.client.get_collection(name=self.collection_name)
         except Exception as e:
             raise RuntimeError(
-                f"Nem található a(z) '{self.collection_name}' gyűjtemény a ChromaDB-ben: {e}"
+                f"Collection '{self.collection_name}' not found in ChromaDB: {e}"
             )
 
-        # FastEmbed modell inicializálása lekérdezés-beágyazáshoz
+        # Initialize FastEmbed model for query embedding
         self.embedding_model = TextEmbedding(model_name=self.embedding_model_name)
 
     def search(
@@ -76,16 +76,16 @@ class DocumentationRetriever:
         limit: int = 5,
         where_filter: dict[str, Any] | None = None,
     ) -> list[SearchResult]:
-        """Szemantikus keresést hajt végre a lekérdezés alapján."""
+        """Performs semantic search based on query."""
         query = query.strip()
         if not query:
             return []
 
-        # Lekérdezés vektorizálása
+        # Vectorize query
         query_embeddings = list(self.embedding_model.embed([query]))
         query_vector = query_embeddings[0].tolist()
 
-        # ChromaDB lekérdezés
+        # ChromaDB query
         query_args: dict[str, Any] = {
             "query_embeddings": [query_vector],
             "n_results": limit,
@@ -104,7 +104,7 @@ class DocumentationRetriever:
         distances = results.get("distances", [[]])[0]
 
         for chunk_id, doc_text, meta, dist in zip(ids, documents, metadatas, distances):
-            # Koszinusz távolság átalakítása relevancia pontszámra (1.0 = tökéletes egyezés)
+            # Convert cosine distance to relevance score (1.0 = perfect match)
             # ChromaDB cosine distance: distance = 1 - cosine_similarity
             relevance = max(0.0, 1.0 - float(dist)) if dist is not None else 0.0
 

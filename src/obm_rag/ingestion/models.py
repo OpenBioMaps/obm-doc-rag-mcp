@@ -4,7 +4,7 @@ from typing import Any
 
 @dataclass
 class DocChunk:
-    """Egy dokumentum-szövegrészlet és metaadatai."""
+    """A document text chunk and its associated metadata."""
 
     id: str
     content: str
@@ -17,7 +17,7 @@ class DocChunk:
     total_chunks: int = 1
 
     def to_metadata(self) -> dict[str, Any]:
-        """Visszaadja a vektortárba perzisztálható metaadatokat."""
+        """Returns metadata serializable to vector store."""
         return {
             "file_path": self.file_path,
             "file_name": self.file_name,
@@ -29,6 +29,6 @@ class DocChunk:
 
     @property
     def formatted_text(self) -> str:
-        """A beágyazáshoz és LLM kontextushoz összeállított címkézett szöveg."""
+        """Formatted and labeled text prepared for embedding and LLM context."""
         header = f"[{self.doc_title}] > {self.section_hierarchy}\n" if self.section_hierarchy else f"[{self.doc_title}]\n"
         return f"{header}{self.content.strip()}"

@@ -1,52 +1,52 @@
-﻿# OpenBioMaps RAG & MCP Szerver
+﻿# OpenBioMaps RAG & MCP Server
 
-Hivatalos OpenBioMaps magyar dokumentációra épülő publikus szemantikus kereső és [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) szerver.
+Semantic search and public [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server built on the official OpenBioMaps documentation.
 
-A projekt célja, hogy központi, publikusan elérhető MCP szerverként szolgálja ki az AI klienseket (VS Code GitHub Copilot, Cursor, Claude, webes AI asszisztensek stb.). A felhasználóknak a saját gépükre semmit sem kell telepíteniük: csupán a szerver URL-jét kell megadniuk az AI eszközükben.
+The goal of this project is to provide a central, publicly accessible MCP server for AI clients (VS Code GitHub Copilot, Cursor, Claude, web-based AI assistants, etc.). End users do not need to install anything locally (no Python, no Docker): they only need to specify the server URL in their AI tools.
 
-A dokumentációt a rendszer a Docker build során automatikusan beindexeli (ChromaDB vektortár + FastEmbed modell), és azonnal futtatható konténerként teszi közzé a GitHub Container Registry-ben (GHCR).
+Documentation is automatically indexed during the Docker build stage (ChromaDB vector store + FastEmbed multilingual model) and published as a ready-to-run container on the GitHub Container Registry (GHCR).
 
 ---
 
-## 🌐 Publikus Szerver Végpontok
+## 🌐 Public Server Endpoints
 
-A szerver az alábbi szabványos MCP protokollokat támogatja:
+The server supports standard MCP transports:
 
-| Protokoll | Végpont URL | Leírás |
+| Transport | Endpoint URL | Description |
 | :--- | :--- | :--- |
-| **Streamable HTTP** *(Ajánlott, alapértelmezett)* | `http(s)://<SZERVER_IP_VAGY_DOMAIN>:8000/mcp` | A legújabb, modern MCP HTTP szabvány. Közvetlenül használható webes és asztali kliensekből. |
-| **Server-Sent Events (SSE)** | `http(s)://<SZERVER_IP_VAGY_DOMAIN>:8000/sse` | Hagyományos SSE transzport régebbi kliensekhez. |
+| **Streamable HTTP** *(Recommended, default)* | `http(s)://<SERVER_IP_OR_DOMAIN>:8000/mcp` | Latest modern MCP HTTP standard. Usable directly by web and desktop clients. |
+| **Server-Sent Events (SSE)** | `http(s)://<SERVER_IP_OR_DOMAIN>:8000/sse` | Traditional SSE transport for legacy clients. |
 
 ---
 
-## 🚀 Szerver Telepítés és Üzemeltetés (Docker Compose)
+## 🚀 Server Deployment and Operation (Docker Compose)
 
-A szerverre **nem kell letölteni vagy klónozni a forráskódot**. A futtatáshoz mindössze a `docker-compose.yml` fájl szükséges, amely közvetlenül a GitHub Container Registry-ből (`ghcr.io`) húzza le a készre indexelt konténert.
+There is **no need to clone or store source code on the production server**. Running the service only requires the `docker-compose.yml` file, which pulls the pre-built, pre-indexed container image directly from GitHub Container Registry (`ghcr.io`).
 
-### 1. Telepítés és indítás (1 perc)
+### 1. Installation and Startup (1 minute)
 
 ```bash
-# 1. Mappa létrehozása a szerveren és belépés
+# 1. Create deployment directory and navigate to it
 mkdir -p /srv/docker/obm-rag
 cd /srv/docker/obm-rag
 
-# 2. docker-compose.yml letöltése a GitHubról
-curl -O https://raw.githubusercontent.com/<SZERVEZET_VAGY_USER>/<REPO_NEV>/master/docker-compose.yml
+# 2. Download docker-compose.yml from GitHub
+curl -O https://raw.githubusercontent.com/<OWNER>/<REPO>/master/docker-compose.yml
 
-# 3. (Opcionális) Környezeti beállítások testreszabása
+# 3. (Optional) Customize environment variables
 # cat << 'EOF' > .env
 # PORT=8000
 # OBM_TRANSPORT=streamable-http
 # EOF
 
-# 4. Image letöltése és konténer indítása a háttérben
+# 4. Pull pre-built image and start in background
 docker compose pull
 docker compose up -d
 ```
 
-### 2. HTTPS és Reverse Proxy beállítása (Nginx minta)
+### 2. HTTPS and Reverse Proxy Setup (Nginx example)
 
-Éles publikus üzemhez ajánlott domain név és SSL tanúsítvány (pl. Let's Encrypt) használata:
+For production public deployments, a domain name and TLS certificate (e.g., Let's Encrypt) are recommended:
 
 ```nginx
 server {
@@ -64,7 +64,7 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         
-        # Streamable HTTP és SSE streaming beállítások
+        # Streamable HTTP and SSE streaming configuration
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 86400s;
@@ -73,9 +73,9 @@ server {
 }
 ```
 
-### 3. Frissítés új verzióra
+### 3. Updating to Latest Version
 
-Amikor a GitHub Actions elkészíti az új image-et, a szerveren csupán ezt a parancsot kell kiadni a frissítéshez:
+When a new image is published by GitHub Actions, update the server with a single command:
 
 ```bash
 docker compose pull && docker compose up -d
@@ -83,13 +83,13 @@ docker compose pull && docker compose up -d
 
 ---
 
-## 💻 Kliens Csatlakozás a Publikus Szerverhez
+## 💻 Client Integration with the Public Server
 
-A végfelhasználóknak **nincs szükségük Dockerre, Pythonra vagy helyi forráskódra**. Csupán a szerver URL-jét kell konfigurálniuk a preferált fejlesztői vagy AI eszközükben:
+End users **do not need Docker, Python, or local source code**. They only need to configure the server URL in their preferred AI environment:
 
-### 1. VS Code GitHub Copilot beállítása
+### 1. VS Code GitHub Copilot Setup
 
-A felhasználó a projektjének `.vscode/mcp.json` fájljába (vagy globális felhasználói beállításaiba) az alábbi bejegyzést illeszti be:
+Add the server to your project's `.vscode/mcp.json` file (or user settings):
 
 ```json
 {
@@ -102,41 +102,41 @@ A felhasználó a projektjének `.vscode/mcp.json` fájljába (vagy globális fe
 }
 ```
 
-*(Ha a szervert még IP címen éritek el reverse proxy nélkül: `"url": "http://<SZERVER_IP>:8000/mcp"`)*
+*(If connecting via IP without a reverse proxy: `"url": "http://<SERVER_IP>:8000/mcp"`)*
 
-Ezt követően a Copilot Chat automatikusan meghívja az OpenBioMaps keresőt (`rag_search`), ha a felhasználó a működésről, rétegekről, konfigurációról kérdez.
+Copilot Chat will automatically invoke the OpenBioMaps tool (`rag_search`) whenever answering questions about OpenBioMaps architecture, modules, layers, or configuration.
 
 ---
 
-### 2. Cursor IDE beállítása
+### 2. Cursor IDE Setup
 
-A Cursor **Settings -> Features -> MCP** felületén:
-1. Kattints az **Add new MCP server** gombra.
-2. Név: `OpenBioMaps Docs`
-3. Típus: `HTTP` (vagy `SSE`)
+In Cursor under **Settings -> Features -> MCP**:
+1. Click **Add new MCP server**.
+2. Name: `OpenBioMaps Docs`
+3. Type: `HTTP` (or `SSE`)
 4. URL: `https://mcp.openbiomaps.org/mcp`
 
 ---
 
-### 3. Claude Desktop / egyéb távoli MCP kliensek
+### 3. Claude Desktop / Other Remote MCP Clients
 
-A távoli HTTP/SSE végpont támogatásával rendelkező kliensekben elegendő a megosztott `https://mcp.openbiomaps.org/mcp` URL megadása.
+For clients supporting remote HTTP/SSE endpoints, supply the shared `https://mcp.openbiomaps.org/mcp` URL in the MCP configuration.
 
 ---
 
-## 🔄 CI/CD és Dokumentáció Változáskövetés (GitHub Actions)
+## 🔄 CI/CD & Documentation Tracking (GitHub Actions)
 
-A repóban lévő munkafolyamatok teljesen automatizálják az életciklust:
+Workflows included in this repository:
 
-1. **`ci.yml`**: Minden commit és PR esetén ellenőrzi a kódot (Ruff) és lefuttatja a Pytest egységteszteket.
+1. **`ci.yml`**: Runs code quality checks (Ruff linter) and executes unit tests (Pytest) on commits and pull requests.
 2. **`build-and-publish.yml`**:
-   - Letölti a hivatalos [OpenBioMaps/documentation](https://github.com/OpenBioMaps/documentation) repó tartalmát.
-   - Elvégzi a dokumentumok felosztását és beindexeli őket a Docker build fázisban (`pre-baked index`).
-   - Publikálja az új verziót a GitHub Container Registry-be: `ghcr.io/<szervezet_vagy_user>/<repo_nev>:latest`.
+   - Clones official documentation from [OpenBioMaps/documentation](https://github.com/OpenBioMaps/documentation).
+   - Chunks and indexes the documentation during Docker build (`pre-baked index`).
+   - Publishes ready-to-run images to GitHub Container Registry: `ghcr.io/<owner>/<repo>:latest`.
 
-### Dokumentáció automatikus frissítése Webhookkal (`repository_dispatch`)
+### Automatic Rebuild via Documentation Webhook (`repository_dispatch`)
 
-Ahhoz, hogy az [OpenBioMaps/documentation](https://github.com/OpenBioMaps/documentation) repó módosulásakor a szerver image azonnal és automatikusan újraépüljön, helyezd el az alábbi workflow-t a dokumentációs repó `.github/workflows/notify-rag.yml` fájljában:
+To automatically rebuild the Docker image whenever documentation changes in [OpenBioMaps/documentation](https://github.com/OpenBioMaps/documentation), add this workflow to the documentation repository (`.github/workflows/notify-rag.yml`):
 
 ```yaml
 name: Notify RAG on Docs Update
@@ -153,14 +153,14 @@ jobs:
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.RAG_TRIGGER_PAT }}  # GitHub Personal Access Token (repo scope)
-          repository: <SZERVEZET_VAGY_USER>/<RAG_REPO_NEV>
+          repository: <OWNER>/<RAG_REPO_NAME>
           event-type: documentation_updated
 ```
 
 ---
 
-## 🧰 Elérhető MCP Eszközök (Tools)
+## 🧰 Available MCP Tools
 
-- **`rag_search(query: str, limit: int = 5)`**: Szemantikus keresés az OpenBioMaps hivatalos magyar dokumentációjában. Visszaadja a leginkább releváns szövegrészleteket, azok témáját, fejezethierarchiáját, a forrásfájl elérési útját és a relevancia pontszámot.
-- **`read_documentation_page(path: str)`**: Egy teljes dokumentációs oldal beolvasása az eredeti formájában (`.rst` vagy `.md`), path-traversal védelemmel.
-- **`list_documentation_pages()`**: A magyar dokumentációban elérhető oldalak listája a teljes dokumentációs fa áttekintéséhez.
+- **`rag_search(query: str, limit: int = 5)`**: Semantic search in OpenBioMaps documentation. Returns relevant snippets, topic hierarchy, source file paths, and relevance scores.
+- **`read_documentation_page(path: str)`**: Reads a complete documentation page in raw format (`.rst` or `.md`) with path traversal protection.
+- **`list_documentation_pages()`**: Lists all available documentation pages for hierarchy exploration.

@@ -9,7 +9,7 @@ from obm_rag.ingestion.models import DocChunk
 
 
 class _SphinxDummyDirective(Directive):
-    """Csendes kezelő Sphinx direktívákhoz (pl. toctree, note, warning)."""
+    """Silent handler for Sphinx directives (e.g., toctree, note, warning)."""
 
     has_content = True
     optional_arguments = 10
@@ -17,14 +17,14 @@ class _SphinxDummyDirective(Directive):
     option_spec = {}
 
     def run(self):
-        # A direktíva tartalmát (ha van szövege) bekezdésként megőrizzük
+        # Preserve directive content as paragraph if present
         text = "\n".join(self.content).strip()
         if text:
             return [nodes.paragraph(text, text)]
         return []
 
 
-# Regisztráljuk a leggyakoribb Sphinx direktívákat
+# Register common Sphinx directives
 _SPHINX_DIRECTIVES = [
     "toctree",
     "note",
@@ -51,12 +51,12 @@ for dir_name in _SPHINX_DIRECTIVES:
 
 
 def _sphinx_role_handler(name, rawtext, text, lineno, inliner, options=None, content=None):
-    """Kezeli a Sphinx-specifikus role-okat (:doc:, :ref:, :term: stb.)."""
+    """Handles Sphinx-specific roles (:doc:, :ref:, :term:, etc.)."""
     if options is None:
         options = {}
     if content is None:
         content = []
-    # Ha van 'Szöveg <hivatkozás>' formátum, csak a megjelenő szöveget tartjuk meg
+    # If text is in 'Display text <target>' format, preserve only display text
     if "<" in text and text.endswith(">"):
         display_text = text[: text.index("<")].strip()
     else:
@@ -64,7 +64,7 @@ def _sphinx_role_handler(name, rawtext, text, lineno, inliner, options=None, con
     return [nodes.Text(display_text)], []
 
 
-# Regisztráljuk az ismert Sphinx role-okat docutils alatt
+# Register known Sphinx roles under docutils
 _SPHINX_ROLES = [
     "doc",
     "ref",
@@ -84,10 +84,10 @@ for role_name in _SPHINX_ROLES:
 
 
 def clean_text(text: str) -> str:
-    """Többszörös szóközök és üres sorok tisztítása."""
+    """Clean up multiple whitespaces and excessive blank lines."""
     lines = [line.rstrip() for line in text.splitlines()]
     cleaned = "\n".join(lines)
-    # 3 vagy több üres sor redukálása legfeljebb kettőre
+    # Reduce 3 or more consecutive newlines to at most two
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
     return cleaned.strip()
 
@@ -95,14 +95,14 @@ def clean_text(text: str) -> str:
 def split_text_into_chunks(
     text: str, max_words: int = 500, overlap_words: int = 80
 ) -> list[str]:
-    """Hosszú szöveget bekezdések vagy mondatok mentén bont kisebb részekre átfedéssel."""
+    """Splits long text into smaller overlapping chunks along paragraphs or sentences."""
     text = clean_text(text)
     words = text.split()
     if len(words) <= max_words:
         return [text] if text else []
 
     chunks = []
-    # Elsődleges bontás bekezdések szerint
+    # Primary split by paragraphs
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
 
     current_chunk: list[str] = []
@@ -114,7 +114,7 @@ def split_text_into_chunks(
             chunk_str = "\n\n".join(current_chunk)
             chunks.append(chunk_str)
 
-            # Átfedés megtartása
+            # Preserve overlap
             overlap_collector: list[str] = []
             overlap_count = 0
             for prev_para in reversed(current_chunk):
@@ -137,7 +137,7 @@ def split_text_into_chunks(
 
 
 def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[DocChunk]:
-    """Beolvas egy Sphinx .rst fájlt és szekció-alapú chunk-okat készít."""
+    """Parses a Sphinx .rst file and extracts section-based chunks."""
     rel_path = (
         file_path.relative_to(base_docs_dir).as_posix()
         if base_docs_dir
@@ -145,7 +145,7 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
     )
     raw_content = file_path.read_text(encoding="utf-8", errors="replace")
 
-    # Előtisztítás: docinfo mezők kiszűrése ha vannak
+    # Pre-cleaning: filter out docinfo fields if present
     cleaned_input = re.sub(r"^:author:.*$", "", raw_content, flags=re.MULTILINE)
     cleaned_input = re.sub(r"^:date:.*$", "", cleaned_input, flags=re.MULTILINE)
 
@@ -159,19 +159,19 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
             },
         )
     except Exception:
-        # Ha a docutils nem tudja értelmezni, fallback egyszerű szövegbontásra
+        # If docutils fails to parse, fallback to simple text splitting
         return _fallback_parse_file(file_path, rel_path, raw_content)
 
     doc_title = file_path.stem
     sections = list(doctree.findall(lambda n: n.tagname == "section"))
 
     if not sections:
-        # Ha nincsenek szekciók, az egész dokumentum szövege egy vagy több chunk
+        # If no sections found, treat whole text as one or more chunks
         full_text = clean_text(doctree.astext())
         return _create_chunks_from_text(
             full_text=full_text,
             doc_title=doc_title,
-            section_title="Főoldal",
+            section_title="Main",
             section_hierarchy=doc_title,
             file_path=rel_path,
             file_name=file_path.name,
@@ -179,12 +179,12 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
 
     chunks: list[DocChunk] = []
 
-    # Megkeressük a legfelső szintű címet
+    # Find top-level title
     first_title_node = doctree.next_node(lambda n: n.tagname == "title")
     if first_title_node:
         doc_title = first_title_node.astext().strip()
 
-    # Gyűjtsük ki a dokumentum gyökér szintjén lévő bevezető szöveget (még az alfejezetek előtt)
+    # Collect introductory text at document root level (before first subsection)
     intro_parts = []
     for child in doctree.children:
         if child.tagname not in ("section", "title", "docinfo"):
@@ -195,19 +195,19 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
             _create_chunks_from_text(
                 full_text=intro_text,
                 doc_title=doc_title,
-                section_title="Bevezetés",
+                section_title="Introduction",
                 section_hierarchy=doc_title,
                 file_path=rel_path,
                 file_name=file_path.name,
             )
         )
 
-    # Végigmegyünk a szekciókon
+    # Process all sections
     for sec in sections:
         title_node = sec.next_node(lambda n: n.tagname == "title")
-        section_title = title_node.astext().strip() if title_node else "Általános"
+        section_title = title_node.astext().strip() if title_node else "General"
 
-        # Felépítjük a szekció hierarchiát a szülőkből
+        # Build section hierarchy from parents
         hierarchy_parts = []
         parent = sec.parent
         while parent and parent.tagname == "section":
@@ -219,10 +219,9 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
         if not hierarchy_parts:
             hierarchy_parts = [doc_title]
         hierarchy_parts.append(section_title)
-        section_hierarchy = " > ".join(dict.fromkeys(hierarchy_parts))  # ismétlődések nélkül
+        section_hierarchy = " > ".join(dict.fromkeys(hierarchy_parts))  # without duplicates
 
-        # A szekció közvetlen szöveges tartalma (kihagyva a beágyazott alszekciók tartalmát,
-        # mert azokat külön szekcióként úgyis bejárjuk)
+        # Immediate text content of the section (excluding child sections)
         sec_text_parts = []
         for child in sec.children:
             if child.tagname not in ("section", "title"):
@@ -242,7 +241,7 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
         )
         chunks.extend(sec_chunks)
 
-    # Indexek újraszámozása a fájl szintjén
+    # Renumber chunk indices at file level
     for idx, c in enumerate(chunks):
         c.chunk_index = idx
         c.total_chunks = len(chunks)
@@ -254,7 +253,7 @@ def parse_rst_file(file_path: Path, base_docs_dir: Path | None = None) -> list[D
 def parse_markdown_file(
     file_path: Path, base_docs_dir: Path | None = None
 ) -> list[DocChunk]:
-    """Beolvas egy Markdown (.md) fájlt és szekció-alapú chunk-okat készít."""
+    """Parses a Markdown (.md) file and extracts section-based chunks."""
     rel_path = (
         file_path.relative_to(base_docs_dir).as_posix()
         if base_docs_dir
@@ -266,7 +265,7 @@ def parse_markdown_file(
     doc_title = file_path.stem
 
     sections: list[tuple[str, list[str], str]] = []  # (section_title, lines, hierarchy)
-    current_title = "Általános"
+    current_title = "General"
     current_lines: list[str] = []
     hierarchy_stack: list[tuple[int, str]] = []
 
@@ -279,13 +278,13 @@ def parse_markdown_file(
             if level == 1 and doc_title == file_path.stem:
                 doc_title = title
 
-            # Előző szekció lezárása
+            # Finalize previous section
             if current_lines:
                 hierarchy_str = " > ".join([h[1] for h in hierarchy_stack]) if hierarchy_stack else doc_title
                 sections.append((current_title, current_lines, hierarchy_str))
                 current_lines = []
 
-            # Hierarchia frissítése
+            # Update hierarchy
             while hierarchy_stack and hierarchy_stack[-1][0] >= level:
                 hierarchy_stack.pop()
             hierarchy_stack.append((level, title))
@@ -313,7 +312,7 @@ def parse_markdown_file(
         )
         chunks.extend(sec_chunks)
 
-    # Indexek újraszámozása
+    # Renumber chunk indices
     for idx, c in enumerate(chunks):
         c.chunk_index = idx
         c.total_chunks = len(chunks)
@@ -325,13 +324,13 @@ def parse_markdown_file(
 def _fallback_parse_file(
     file_path: Path, rel_path: str, raw_content: str
 ) -> list[DocChunk]:
-    """Egyszerű szövegbontás, ha nem parse-olható strukturáltan."""
+    """Fallback plain text splitting when structured parsing fails."""
     doc_title = file_path.stem
     cleaned = clean_text(raw_content)
     return _create_chunks_from_text(
         full_text=cleaned,
         doc_title=doc_title,
-        section_title="Általános",
+        section_title="General",
         section_hierarchy=doc_title,
         file_path=rel_path,
         file_name=file_path.name,
@@ -347,7 +346,7 @@ def _create_chunks_from_text(
     file_name: str,
     min_words: int = 1,
 ) -> list[DocChunk]:
-    """Szövegből DocChunk objektumokat állít elő, kiszűrve a teljesen üres töredékeket."""
+    """Produces DocChunk objects from text, filtering out empty fragments."""
     text_chunks = split_text_into_chunks(full_text)
     result = []
     for idx, piece in enumerate(text_chunks):
@@ -369,14 +368,14 @@ def _create_chunks_from_text(
 
 
 def parse_documentation_directory(docs_dir: Path) -> list[DocChunk]:
-    """Beolvassa a megadott könyvtár összes .rst és .md dokumentáció fájlját."""
+    """Parses all .rst and .md documentation files in the specified directory."""
     docs_dir = Path(docs_dir)
     if not docs_dir.exists():
-        raise FileNotFoundError(f"Dokumentáció mappa nem található: {docs_dir}")
+        raise FileNotFoundError(f"Documentation directory not found: {docs_dir}")
 
     all_chunks: list[DocChunk] = []
 
-    # Rendezett sorrendben járjuk be
+    # Traverse in sorted order
     for file_path in sorted(docs_dir.glob("**/*")):
         if file_path.is_file():
             if file_path.suffix.lower() == ".rst":
@@ -386,7 +385,7 @@ def parse_documentation_directory(docs_dir: Path) -> list[DocChunk]:
                 chunks = parse_markdown_file(file_path, base_docs_dir=docs_dir)
                 all_chunks.extend(chunks)
 
-    # Globális egyedi azonosítók hozzárendelése
+    # Assign global unique IDs
     for i, chk in enumerate(all_chunks):
         chk.id = f"chunk_{i:04d}_{chk.file_name.replace('.', '_')}"
 

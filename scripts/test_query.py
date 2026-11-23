@@ -18,11 +18,11 @@ console = Console(highlight=False)
 
 
 def display_results(query: str, results, elapsed: float):
-    console.print(f"\n[bold cyan]Keresési kifejezés:[/bold cyan] [yellow]{query}[/yellow]")
-    console.print(f"Találatok száma: [bold green]{len(results)}[/bold green] (lekérdezési idő: {elapsed:.3f} mp)\n")
+    console.print(f"\n[bold cyan]Search query:[/bold cyan] [yellow]{query}[/yellow]")
+    console.print(f"Results count: [bold green]{len(results)}[/bold green] (latency: {elapsed:.3f} s)\n")
 
     if not results:
-        console.print("[red]Nem található releváns találat.[/red]\n")
+        console.print("[red]No relevant results found.[/red]\n")
         return
 
     for idx, r in enumerate(results, 1):
@@ -30,8 +30,8 @@ def display_results(query: str, results, elapsed: float):
             f"[bold green]#{idx}[/bold green] | "
             f"[bold magenta]{r.doc_title}[/bold magenta] > "
             f"[cyan]{r.section_hierarchy}[/cyan] "
-            f"([yellow]Relevancia: {r.score:.3f}[/yellow])\n"
-            f"[dim]Forrás: {r.file_path} (ID: {r.id})[/dim]"
+            f"([yellow]Relevance: {r.score:.3f}[/yellow])\n"
+            f"[dim]Source: {r.file_path} (ID: {r.id})[/dim]"
         )
         content_preview = r.content.strip()
         console.print(
@@ -47,26 +47,26 @@ def display_results(query: str, results, elapsed: float):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OpenBioMaps Dokumentáció Szemantikus Kereső Teszt"
+        description="OpenBioMaps Documentation Semantic Search Test"
     )
     parser.add_argument(
         "query",
         type=str,
         nargs="?",
-        help="A keresendő kérdés vagy kifejezés (ha üres, interaktív mód indul)",
+        help="Search query or question (if omitted, interactive mode starts)",
     )
     parser.add_argument(
         "--limit",
         type=int,
         default=3,
-        help="A megjelenítendő találatok száma (alapértelmezett: 3)",
+        help="Number of results to display (default: 3)",
     )
     args = parser.parse_args()
 
     try:
         retriever = DocumentationRetriever()
     except Exception as e:
-        console.print(f"[bold red]Hiba a retriever inicializálásakor:[/bold red] {e}")
+        console.print(f"[bold red]Error initializing retriever:[/bold red] {e}")
         sys.exit(1)
 
     if args.query:
@@ -74,11 +74,11 @@ def main():
         results = retriever.search(args.query, limit=args.limit)
         display_results(args.query, results, time.time() - t0)
     else:
-        console.print("[bold green]OpenBioMaps Interaktív Dokumentáció Kereső[/bold green]")
-        console.print("Írj be egy kérdést, vagy nyomj Entert üresen / 'exit' a kilépéshez.\n")
+        console.print("[bold green]OpenBioMaps Interactive Documentation Search[/bold green]")
+        console.print("Type your question, or press Enter / 'exit' to quit.\n")
         while True:
             try:
-                user_query = console.input("[bold cyan]Kérdés > [/bold cyan]").strip()
+                user_query = console.input("[bold cyan]Query > [/bold cyan]").strip()
             except (KeyboardInterrupt, EOFError):
                 break
             if not user_query or user_query.lower() in ("exit", "quit", "q"):

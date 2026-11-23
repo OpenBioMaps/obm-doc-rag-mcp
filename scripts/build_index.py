@@ -3,7 +3,7 @@ import sys
 import time
 from pathlib import Path
 
-# Biztosítjuk a tiszta UTF-8 kódolást standard stream-eken
+# Ensure clean UTF-8 encoding on standard streams
 if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -29,28 +29,28 @@ def build_index(
 ):
     start_time = time.time()
     console.print(
-        "[bold cyan]OpenBioMaps Dokumentáció Indexelő[/bold cyan] indítása..."
+        "[bold cyan]OpenBioMaps Documentation Indexer[/bold cyan] starting..."
     )
-    console.print(f" - Forrás mappa: [yellow]{docs_path}[/yellow]")
-    console.print(f" - Kimeneti adatbázis: [yellow]{output_dir}[/yellow]")
-    console.print(f" - Embedding modell: [yellow]{model_name}[/yellow]")
+    console.print(f" - Source directory: [yellow]{docs_path}[/yellow]")
+    console.print(f" - Output vector database: [yellow]{output_dir}[/yellow]")
+    console.print(f" - Embedding model: [yellow]{model_name}[/yellow]")
 
-    # 1. Dokumentumok beolvasása és darabolása
-    with console.status("[bold green]Dokumentumok elemzése és chunkolása..."):
+    # 1. Read and chunk documents
+    with console.status("[bold green]Parsing and chunking documents..."):
         t0 = time.time()
         chunks = parse_documentation_directory(docs_path)
         t_parse = time.time() - t0
 
     console.print(
-        f"[green][+][/green] [green]{len(chunks)}[/green] darab chunk előállítva ({t_parse:.2f} mp alatt)."
+        f"[green][+][/green] [green]{len(chunks)}[/green] chunks generated in {t_parse:.2f} s."
     )
 
     if not chunks:
-        console.print("[red]Hiba: Nem található feldolgozható dokumentáció![/red]")
+        console.print("[red]Error: No parseable documentation found![/red]")
         return
 
-    # 2. Vektortár inicializálása és beágyazás
-    with console.status("[bold green]Modell betöltése és vektorizálás CPU-n..."):
+    # 2. Initialize vector store and compute embeddings
+    with console.status("[bold green]Loading model and vectorizing on CPU..."):
         t0 = time.time()
         indexer = DocumentIndexer(
             db_path=output_dir,
@@ -61,51 +61,51 @@ def build_index(
 
     elapsed = time.time() - start_time
 
-    # Statisztika táblázat
-    table = Table(title="Indexelési Összefoglaló")
-    table.add_column("Tulajdonság", style="cyan")
-    table.add_column("Érték", style="magenta")
+    # Summary table
+    table = Table(title="Indexing Summary")
+    table.add_column("Property", style="cyan")
+    table.add_column("Value", style="magenta")
 
-    table.add_row("Dokumentumok forrása", str(docs_path))
-    table.add_row("Generált chunkok száma", str(total_indexed))
-    table.add_row("Embedding modell", model_name)
-    table.add_row("Parsing idő", f"{t_parse:.2f} s")
-    table.add_row("Embedding + mentés idő", f"{t_embed:.2f} s")
-    table.add_row("Vektorizálási sebesség", f"{total_indexed / t_embed:.1f} chunk/s")
-    table.add_row("Teljes futási idő", f"{elapsed:.2f} s")
+    table.add_row("Documentation source", str(docs_path))
+    table.add_row("Total generated chunks", str(total_indexed))
+    table.add_row("Embedding model", model_name)
+    table.add_row("Parsing time", f"{t_parse:.2f} s")
+    table.add_row("Embedding + save time", f"{t_embed:.2f} s")
+    table.add_row("Vectorization throughput", f"{total_indexed / t_embed:.1f} chunks/s")
+    table.add_row("Total elapsed time", f"{elapsed:.2f} s")
 
     console.print(table)
     console.print(
-        f"[bold green][+] Sikeres indexelés![/bold green] Az index mentve: [cyan]{output_dir}[/cyan]\n"
+        f"[bold green][+] Indexing successful![/bold green] Index saved to: [cyan]{output_dir}[/cyan]\n"
     )
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="OpenBioMaps Dokumentáció Indexelő és Vektortár Építő"
+        description="OpenBioMaps Documentation Indexer and Vector Store Builder"
     )
     parser.add_argument(
         "--docs-path",
         type=Path,
         default=settings.docs_path,
-        help="A forrás dokumentáció könyvtára (alapértelmezett: documentation/official_docs/hu)",
+        help="Source documentation directory (default: documentation/official_docs/hu)",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=settings.vector_db_path,
-        help="A cél vektoradatbázis könyvtára (alapértelmezett: data/vector_store)",
+        help="Target vector database directory (default: data/vector_store)",
     )
     parser.add_argument(
         "--model",
         type=str,
         default=settings.embedding_model,
-        help="FastEmbed embedding modell (alapértelmezett: BAAI/bge-m3)",
+        help="FastEmbed embedding model (default: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2)",
     )
     parser.add_argument(
         "--no-reset",
         action="store_true",
-        help="Ne törölje a korábbi gyűjteményt az indexelés előtt",
+        help="Do not delete existing collection before indexing",
     )
 
     args = parser.parse_args()

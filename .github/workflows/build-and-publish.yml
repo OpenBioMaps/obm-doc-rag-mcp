@@ -10,13 +10,13 @@ on:
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/build-and-publish.yml"
-  # Eseményvezérelt indítás: meghívható a documentation repo-ból webhookkal
+  # Event-driven trigger: can be invoked from the documentation repo via webhook
   repository_dispatch:
     types: [documentation_updated]
-  # Ütemezett újraépítés (alapértelmezésben kikommentezve, ha inkább webhookot használsz):
+  # Scheduled rebuild (commented out by default when using webhook triggers):
   # schedule:
   #   - cron: '0 3 * * *'
-  # Manuális indítás a GitHub Actions felületről
+  # Manual dispatch from the GitHub Actions UI
   workflow_dispatch:
 
 env:
@@ -32,26 +32,26 @@ jobs:
       packages: write
 
     steps:
-      - name: Kód letöltése
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: OpenBioMaps dokumentáció letöltése
+      - name: Checkout OpenBioMaps documentation
         uses: actions/checkout@v4
         with:
           repository: OpenBioMaps/documentation
           path: documentation
 
-      - name: Docker Buildx beállítása
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Bejelentkezés a GitHub Container Registry-be
+      - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Docker metaadatok kinyerése (címkék és leírók)
+      - name: Extract Docker metadata (tags and labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -60,7 +60,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
 
-      - name: Docker image építése és feltöltése
+      - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .

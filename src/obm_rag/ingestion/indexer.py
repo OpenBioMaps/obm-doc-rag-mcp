@@ -9,7 +9,7 @@ from obm_rag.ingestion.models import DocChunk
 
 
 class DocumentIndexer:
-    """Dokumentum-chunkok vektorizálása FastEmbed-del és tárolása ChromaDB-ben."""
+    """Vectorize document chunks with FastEmbed and store in ChromaDB."""
 
     def __init__(
         self,
@@ -21,10 +21,10 @@ class DocumentIndexer:
         self.collection_name = collection_name or settings.collection_name
         self.embedding_model_name = embedding_model_name or settings.embedding_model
 
-        # FastEmbed modell inicializálása (CPU ONNX)
+        # Initialize FastEmbed model (CPU ONNX)
         self.embedding_model = TextEmbedding(model_name=self.embedding_model_name)
 
-        # ChromaDB perzisztens kliens
+        # Persistent ChromaDB client
         self.db_path.mkdir(parents=True, exist_ok=True)
         self.client = chromadb.PersistentClient(
             path=str(self.db_path),
@@ -32,7 +32,7 @@ class DocumentIndexer:
         )
 
     def get_or_create_collection(self, reset: bool = False):
-        """Lekéri vagy újragenerálja a ChromaDB gyűjteményt."""
+        """Retrieve or recreate the ChromaDB collection."""
         if reset:
             try:
                 self.client.delete_collection(self.collection_name)
@@ -50,21 +50,21 @@ class DocumentIndexer:
         reset: bool = True,
         batch_size: int = 64,
     ) -> int:
-        """Chunkok beágyazása és feltöltése a ChromaDB-be."""
+        """Embed chunks and upload them to ChromaDB."""
         if not chunks:
             return 0
 
         collection = self.get_or_create_collection(reset=reset)
 
         total = len(chunks)
-        # Formázott szövegek a beágyazáshoz
+        # Formatted texts for embedding
         texts = [c.formatted_text for c in chunks]
 
-        # Vektorizálás FastEmbed segítségével
+        # Vectorize using FastEmbed
         embeddings_generator = self.embedding_model.embed(texts, batch_size=batch_size)
         all_embeddings = list(embeddings_generator)
 
-        # ChromaDB feltöltése kötegekben (batch)
+        # Upload to ChromaDB in batches
         for i in range(0, total, batch_size):
             end_idx = min(i + batch_size, total)
             batch_chunks = chunks[i:end_idx]

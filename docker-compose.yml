@@ -9,6 +9,6 @@ services:
     environment:
       - PYTHONUNBUFFERED=1
       - PYTHONIOENCODING=utf-8
-    # Opcionális perzisztens kötet a vektoradatbázisnak (ha a konténeren kívül szeretnéd tárolni):
+    # Optional persistent volume for vector database (if storing outside the container):
     # volumes:
     #   - ./data/vector_store:/app/data/vector_store

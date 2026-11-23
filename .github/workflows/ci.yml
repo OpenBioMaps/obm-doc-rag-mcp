@@ -12,32 +12,32 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Kód letöltése
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: OpenBioMaps dokumentáció letöltése
+      - name: Checkout OpenBioMaps documentation
         uses: actions/checkout@v4
         with:
           repository: OpenBioMaps/documentation
           path: documentation
 
-      - name: UV telepítése és konfigurálása
+      - name: Set up UV
         uses: astral-sh/setup-uv@v3
         with:
           enable-cache: true
           version: "latest"
 
-      - name: Python 3.12 beállítása
+      - name: Set up Python 3.12
         run: uv python install 3.12
 
-      - name: Függőségek telepítése
+      - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Linter futtatása (Ruff)
+      - name: Run linter (Ruff)
         run: uv run ruff check src scripts tests
 
-      - name: Index felépítése a tesztekhez
+      - name: Build index for tests
         run: uv run python -m scripts.build_index --docs-path documentation/official_docs/hu
 
-      - name: Egységtesztek futtatása (Pytest)
+      - name: Run unit tests (Pytest)
         run: uv run pytest

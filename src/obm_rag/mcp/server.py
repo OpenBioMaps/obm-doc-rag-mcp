@@ -10,50 +10,50 @@ from obm_rag.mcp.tools import (
     execute_read_page,
 )
 
-# MCP Szerver példányosítása
+# Instantiate MCP Server
 mcp_server = MCPServer("OpenBioMaps-Documentation-RAG")
 
 
 @mcp_server.tool(
     description=(
-        "Szemantikus keresés az OpenBioMaps hivatalos magyar dokumentációjában. "
-        "Visszaadja a releváns szövegrészleteket, azok témáját, fejezethierarchiáját, "
-        "a forrásfájl elérési útját és relevancia pontszámát. "
-        "Használd ezt az eszközt az OpenBioMaps működésével, moduljaival, szerver telepítésével, "
-        "adatkezelésével, projekt létrehozásával vagy mobil kliensével kapcsolatos kérdések megválaszolására."
+        "Semantic search in official OpenBioMaps documentation. "
+        "Returns relevant documentation snippets, topics, section hierarchy, "
+        "source file paths, and relevance scores. "
+        "Use this tool to answer questions regarding OpenBioMaps features, modules, server installation, "
+        "data management, project setup, or the mobile client."
     )
 )
 def rag_search(query: str, limit: int = 5) -> str:
-    """Keresés a dokumentációban."""
+    """Search the documentation."""
     return execute_rag_search(query=query, limit=limit)
 
 
 @mcp_server.tool(
     description=(
-        "Egy teljes OpenBioMaps dokumentációs oldal beolvasása az eredeti formájában (.rst vagy .md). "
-        "Használd, ha egy adott fejezet teljes szövegére vagy konfigurációs mintájára van szükség. "
-        "Példa path: 'modules.md', 'getting_started.rst', 'server_install.md'."
+        "Read a complete OpenBioMaps documentation page in its raw format (.rst or .md). "
+        "Use when the full text of a chapter or configuration example is needed. "
+        "Example paths: 'modules.md', 'getting_started.rst', 'server_install.md'."
     )
 )
 def read_documentation_page(path: str) -> str:
-    """Dokumentációs oldal felolvasása."""
+    """Read full documentation page."""
     return execute_read_page(file_path_str=path)
 
 
 @mcp_server.tool(
     description=(
-        "Kilistázza az OpenBioMaps hivatalos dokumentációjában elérhető összes oldal elérési útját. "
-        "Hasznos a dokumentációs struktúra áttekintéséhez."
+        "List all available page paths in official OpenBioMaps documentation. "
+        "Useful for exploring documentation structure."
     )
 )
 def list_documentation_pages() -> str:
-    """Elérhető dokumentációs oldalak listázása."""
+    """List available documentation pages."""
     return execute_list_pages()
 
 
 @mcp_server.resource("obm://docs/pages")
 def resource_list_pages() -> str:
-    """Erőforrás: Dokumentációs oldalak listája."""
+    """Resource: List of documentation pages."""
     return execute_list_pages()
 
 
@@ -65,23 +65,23 @@ def main():
         "--transport",
         choices=["stdio", "sse", "streamable-http"],
         default="stdio",
-        help="MCP kommunikációs protokoll (alapértelmezett: stdio)",
+        help="MCP communication transport (default: stdio)",
     )
     parser.add_argument(
         "--host",
         default="0.0.0.0",
-        help="Szerver host SSE / HTTP mód esetén (alapértelmezett: 0.0.0.0)",
+        help="Server host for SSE / HTTP mode (default: 0.0.0.0)",
     )
     parser.add_argument(
         "--port",
         type=int,
         default=8000,
-        help="Szerver port SSE / HTTP mód esetén (alapértelmezett: 8000)",
+        help="Server port for SSE / HTTP mode (default: 8000)",
     )
 
     args = parser.parse_args()
 
-    # Biztosítjuk a tiszta stream kódolást
+    # Ensure clean stream encoding
     if hasattr(sys.stdin, "reconfigure"):
         try:
             sys.stdin.reconfigure(encoding="utf-8", errors="replace")
