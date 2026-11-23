@@ -44,3 +44,8 @@ data/
 
 # External cloned documentation repository
 documentation/
+
+# Deployment & VM sync scripts
+deploy-to-vm.ps1
+*.tar.gz
+
