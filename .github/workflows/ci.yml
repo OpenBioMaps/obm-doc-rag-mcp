@@ -15,6 +15,12 @@ jobs:
       - name: Kód letöltése
         uses: actions/checkout@v4
 
+      - name: OpenBioMaps dokumentáció letöltése
+        uses: actions/checkout@v4
+        with:
+          repository: OpenBioMaps/documentation
+          path: documentation
+
       - name: UV telepítése és konfigurálása
         uses: astral-sh/setup-uv@v3
         with:

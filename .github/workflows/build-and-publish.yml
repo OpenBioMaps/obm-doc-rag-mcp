@@ -2,15 +2,21 @@ name: Build & Publish Docker Image
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "master"]
     paths:
       - "src/**"
       - "scripts/**"
-      - "documentation/official_docs/hu/**"
       - "Dockerfile"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/build-and-publish.yml"
+  # Eseményvezérelt indítás: meghívható a documentation repo-ból webhookkal
+  repository_dispatch:
+    types: [documentation_updated]
+  # Ütemezett újraépítés (alapértelmezésben kikommentezve, ha inkább webhookot használsz):
+  # schedule:
+  #   - cron: '0 3 * * *'
+  # Manuális indítás a GitHub Actions felületről
   workflow_dispatch:
 
 env:
@@ -28,6 +34,12 @@ jobs:
     steps:
       - name: Kód letöltése
         uses: actions/checkout@v4
+
+      - name: OpenBioMaps dokumentáció letöltése
+        uses: actions/checkout@v4
+        with:
+          repository: OpenBioMaps/documentation
+          path: documentation
 
       - name: Docker Buildx beállítása
         uses: docker/setup-buildx-action@v3

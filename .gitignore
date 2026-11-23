@@ -49,3 +49,7 @@ documentation/
 deploy-to-vm.ps1
 *.tar.gz
 
+# Local developer notes & testing guides (not committed)
+DEVELOPMENT.local.md
+
+

@@ -1,0 +1,14 @@
+services:
+  obm-rag:
+    image: ghcr.io/${GHCR_IMAGE:-openbiomaps/obm-doc-rag-mcp}:${IMAGE_TAG:-latest}
+    container_name: obm-rag
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8000}:8000"
+    command: ["--transport", "${OBM_TRANSPORT:-streamable-http}", "--host", "0.0.0.0", "--port", "8000"]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONIOENCODING=utf-8
+    # Opcionális perzisztens kötet a vektoradatbázisnak (ha a konténeren kívül szeretnéd tárolni):
+    # volumes:
+    #   - ./data/vector_store:/app/data/vector_store
